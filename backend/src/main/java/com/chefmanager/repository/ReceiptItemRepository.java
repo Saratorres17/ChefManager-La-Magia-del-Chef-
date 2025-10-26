@@ -1,0 +1,1 @@
+package com.chefmanager.repository; import com.chefmanager.model.ReceiptItem; import org.springframework.data.jpa.repository.JpaRepository; public interface ReceiptItemRepository extends JpaRepository<ReceiptItem,Long>{}
