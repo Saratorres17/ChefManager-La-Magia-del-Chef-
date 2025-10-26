@@ -1,6 +1,8 @@
 package com.chefmanager.config;
 
-import org.springframework.security.core.userdetails.User;
+import com.chefmanager.model.User;
+import com.chefmanager.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -11,19 +13,22 @@ import java.util.Collections;
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
 
+    @Autowired
+    private UserRepository userRepository;
+
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // 🔹 Aquí deberías buscar el usuario en tu base de datos (UserRepository)
-        // Ejemplo temporal (usuario fijo para pruebas)
-        if ("admin".equals(username)) {
-            return new User(
-                    "admin",
-                    "$2a$10$7zCr5V8xKfMczRMqQmY4w.5Q1Cw6Hr07tq5RPIUyfQ0gR5DzhB4Fe", // contraseña "admin" encriptada con BCrypt
-                    Collections.emptyList()
-            );
-        }
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + username));
 
-        throw new UsernameNotFoundException("Usuario no encontrado: " + username);
+        return org.springframework.security.core.userdetails.User.builder()
+                .username(user.getUsername())
+                .password(user.getPassword())
+                .authorities(Collections.emptyList())
+                .accountExpired(false)
+                .accountLocked(false)
+                .credentialsExpired(false)
+                .disabled(!user.isEnabled())
+                .build();
     }
 }
-

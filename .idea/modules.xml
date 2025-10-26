@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/chefmanager.iml" filepath="$PROJECT_DIR$/.idea/chefmanager.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/ChefManager-La-Magia-del-Chef-.iml" filepath="$PROJECT_DIR$/.idea/ChefManager-La-Magia-del-Chef-.iml" />
+      <module fileurl="file://$PROJECT_DIR$/backend/chefmanager.iml" filepath="$PROJECT_DIR$/backend/chefmanager.iml" />
     </modules>
   </component>
 </project>

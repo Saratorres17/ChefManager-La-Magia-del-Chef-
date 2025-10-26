@@ -88,30 +88,356 @@ function Dashboard({ setCurrent }) {
 }
 
 function Products(){
-  const [list,setList]=useState([])
-  const [form,setForm]=useState({sku:'',name:'',unit:'UND',minStock:0,maxStock:0,cost:0})
-  const load=()=>fetch(API+'/products').then(r=>r.json()).then(setList)
-  useEffect(load,[])
-  const add=async(e)=>{ e.preventDefault(); await fetch(API+'/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)}); setForm({sku:'',name:'',unit:'UND',minStock:0,maxStock:0,cost:0}); load(); }
-  return (<div className="grid">
-    <div className="card"><h3>Nuevo producto</h3>
-      <form className="grid grid-2" onSubmit={add}>
-        <input placeholder="SKU" value={form.sku} onChange={e=>setForm({...form,sku:e.target.value})}/>
-        <input placeholder="Nombre" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
-        <input placeholder="Unidad" value={form.unit} onChange={e=>setForm({...form,unit:e.target.value})}/>
-        <input placeholder="Stock min" type="number" value={form.minStock} onChange={e=>setForm({...form,minStock:+e.target.value})}/>
-        <input placeholder="Stock max" type="number" value={form.maxStock} onChange={e=>setForm({...form,maxStock:+e.target.value})}/>
-        <input placeholder="Costo" type="number" step="0.01" value={form.cost} onChange={e=>setForm({...form,cost:+e.target.value})}/>
-        <button>Guardar</button>
-      </form>
-    </div>
-    <div className="card"><h3>Inventario</h3>
-      <table width="100%">
-        <thead><tr><th>SKU</th><th>Nombre</th><th>Unidad</th><th>Costo</th></tr></thead>
-        <tbody>{list.map(p=>(<tr key={p.id}><td>{p.sku}</td><td>{p.name}</td><td>{p.unit}</td><td>${p.cost?.toFixed?.(2)}</td></tr>))}</tbody>
-      </table>
-    </div>
-  </div>)
+  const [list, setList] = useState([])
+  const [form, setForm] = useState({sku:'', name:'', units:0, cost:0})
+  const [editId, setEditId] = useState(null)
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [totalItems, setTotalItems] = useState(0)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const load = () => {
+    fetch(`${API}/products?page=${page}&size=15`)
+        .then(r => {
+          if (!r.ok) {
+            throw new Error(`HTTP error! status: ${r.status}`);
+          }
+          return r.json();
+        })
+        .then(data => {
+          console.log('Datos recibidos:', data);
+          setList(data.products || [])
+          setTotalPages(data.totalPages || 0)
+          setTotalItems(data.totalItems || 0)
+        })
+        .catch(err => {
+          console.error('Error al cargar productos:', err)
+          setError('Error al cargar productos: ' + err.message)
+          setList([])
+        })
+  }
+
+  useEffect(() => { load() }, [page])
+
+  const resetForm = () => {
+    setForm({sku:'', name:'', units:0, cost:0})
+    setEditId(null)
+    setError('')
+    setSuccess('')
+  }
+
+  const add = async(e) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+
+    // Validaciones
+    if (!form.sku.trim()) {
+      setError('El SKU es obligatorio')
+      return
+    }
+    if (!form.name.trim()) {
+      setError('El nombre es obligatorio')
+      return
+    }
+    if (parseFloat(form.cost) <= 0) {
+      setError('El costo debe ser mayor a 0')
+      return
+    }
+    if (parseInt(form.units) < 0) {
+      setError('Las unidades no pueden ser negativas')
+      return
+    }
+
+    try {
+      const method = editId ? 'PUT' : 'POST'
+      const url = editId ? `${API}/products/${editId}` : `${API}/products`
+
+      const payload = {
+        sku: form.sku.trim(),
+        name: form.name.trim(),
+        units: parseInt(form.units),
+        cost: parseFloat(form.cost).toFixed(2)
+      }
+
+      console.log('Enviando payload:', payload)
+
+      const response = await fetch(url, {
+        method,
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      })
+
+      console.log('Response status:', response.status)
+
+      if (response.ok) {
+        setSuccess(editId ? 'Producto actualizado exitosamente' : 'Producto creado exitosamente')
+        resetForm()
+        load()
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Error del servidor:', errorData)
+        setError(errorData.error || 'Error al guardar el producto')
+      }
+    } catch (err) {
+      console.error('Error al guardar:', err)
+      setError('Error de conexión con el servidor: ' + err.message)
+    }
+  }
+
+  const edit = (product) => {
+    setForm({
+      sku: product.sku,
+      name: product.name,
+      units: product.units,
+      cost: product.cost
+    })
+    setEditId(product.id)
+    setError('')
+    setSuccess('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const del = async(id) => {
+    if (!window.confirm('¿Estás seguro de eliminar este producto?')) return
+
+    setError('')
+    setSuccess('')
+
+    try {
+      const response = await fetch(`${API}/products/${id}`, { method: 'DELETE' })
+
+      if (response.ok) {
+        setSuccess('Producto eliminado exitosamente')
+
+        // Si la página actual queda vacía y no es la primera, ir a la página anterior
+        if (list.length === 1 && page > 0) {
+          setPage(page - 1)
+        } else {
+          load()
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        setError(errorData.error || 'Error al eliminar el producto')
+      }
+    } catch (err) {
+      console.error('Error al eliminar:', err)
+      setError('Error de conexión con el servidor')
+    }
+  }
+
+  return (
+      <div className="grid">
+        {/* Formulario */}
+        <div className="card">
+          <h3>{editId ? 'Editar producto' : 'Nuevo producto'}</h3>
+
+          {error && (
+              <div style={{
+                padding: '10px',
+                backgroundColor: '#993333',
+                color: 'white',
+                borderRadius: '4px',
+                marginBottom: '15px'
+              }}>
+                ❌ {error}
+              </div>
+          )}
+
+          {success && (
+              <div style={{
+                padding: '10px',
+                backgroundColor: '#2d5016',
+                color: 'white',
+                borderRadius: '4px',
+                marginBottom: '15px'
+              }}>
+                ✅ {success}
+              </div>
+          )}
+
+          <form className="grid grid-2" onSubmit={add}>
+            <input
+                placeholder="SKU"
+                value={form.sku}
+                onChange={e => setForm({...form, sku:e.target.value})}
+                required
+            />
+
+            <input
+                placeholder="Nombre"
+                value={form.name}
+                onChange={e => setForm({...form, name:e.target.value})}
+                required
+            />
+
+            {/* Input con label flotante para Unidades */}
+            <div style={{position:'relative'}}>
+              <input
+                  placeholder=" "
+                  type="number"
+                  value={form.units}
+                  onChange={e => setForm({...form, units:e.target.value})}
+                  style={{width:'95%'}}
+                  min="0"
+                  step="1"
+                  required
+              />
+              <label style={{
+                position:'absolute',
+                left:'12px',
+                top: form.units || form.units === 0 ? '-8px' : '50%',
+                transform: (form.units || form.units === 0) ? 'translateY(0)' : 'translateY(-50%)',
+                background:'#1f2937',
+                padding:'0 6px',
+                fontSize: (form.units || form.units === 0) ? '12px' : '14px',
+                color: (form.units || form.units === 0) ? '#6366f1' : '#9ca3af',
+                transition:'all 0.2s ease',
+                pointerEvents:'none'
+              }}>Unidades</label>
+            </div>
+
+            {/* Input con label flotante para Costo */}
+            <div style={{position:'relative'}}>
+              <input
+                  placeholder=" "
+                  type="number"
+                  step="0.01"
+                  value={form.cost}
+                  onChange={e => setForm({...form, cost:e.target.value})}
+                  style={{width:'95%'}}
+                  min="0.01"
+                  required
+              />
+              <label style={{
+                position:'absolute',
+                left:'12px',
+                top: form.cost || form.cost === 0 ? '-8px' : '50%',
+                transform: (form.cost || form.cost === 0) ? 'translateY(0)' : 'translateY(-50%)',
+                background:'#1f2937',
+                padding:'0 6px',
+                fontSize: (form.cost || form.cost === 0) ? '12px' : '14px',
+                color: (form.cost || form.cost === 0) ? '#6366f1' : '#9ca3af',
+                transition:'all 0.2s ease',
+                pointerEvents:'none'
+              }}>Costo</label>
+            </div>
+
+            <div style={{gridColumn:'1 / span 2', display:'flex', gap:'12px'}}>
+              <button type="submit" style={{flex:1}}>
+                {editId ? 'Actualizar' : 'Guardar'}
+              </button>
+              {editId && (
+                  <button
+                      type="button"
+                      onClick={resetForm}
+                      style={{background:'#3d4152'}}
+                  >
+                    Cancelar
+                  </button>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Tabla */}
+        <div className="card">
+          <h3>Inventario</h3>
+
+          <table width="100%">
+            <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Nombre</th>
+              <th>Unidad</th>
+              <th>Costo</th>
+              <th>Acciones</th>
+            </tr>
+            </thead>
+            <tbody>
+            {list.length === 0 ? (
+                <tr>
+                  <td colSpan="5" style={{textAlign:'center', padding:'40px', color:'#9ca3af'}}>
+                    No hay productos registrados
+                  </td>
+                </tr>
+            ) : (
+                list.map(p => (
+                    <tr key={p.id}>
+                      <td style={{padding:'10px', textAlign:'center'}}>{p.sku}</td>
+                      <td style={{padding:'10px', textAlign:'center'}}>{p.name}</td>
+                      <td style={{padding:'10px', textAlign:'center'}}>{p.units}</td>
+                      <td style={{padding:'10px', textAlign:'center'}}>${p.cost?.toFixed?.(2) || '0.00'}</td>
+                      <td style={{padding:'10px', textAlign:'center'}}>
+                        <button
+                            onClick={() => edit(p)}
+                            style={{
+                              background:'none',
+                              border:'none',
+                              cursor:'pointer',
+                              fontSize:'18px',
+                              padding:'4px 8px'
+                            }}
+                            title="Editar"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                            onClick={() => del(p.id)}
+                            style={{
+                              background:'none',
+                              border:'none',
+                              cursor:'pointer',
+                              fontSize:'18px',
+                              padding:'4px 8px'
+                            }}
+                            title="Eliminar"
+                        >
+                          🗑️
+                        </button>
+                      </td>
+                    </tr>
+                ))
+            )}
+            </tbody>
+          </table>
+
+          {/* Paginación */}
+          {totalPages > 1 && (
+              <div style={{
+                display:'flex',
+                justifyContent:'center',
+                alignItems:'center',
+                gap:'20px',
+                marginTop:'20px',
+                paddingTop:'20px',
+                borderTop:'1px solid #3d4152'
+              }}>
+                <button
+                    onClick={() => setPage(page - 1)}
+                    disabled={page === 0}
+                    style={{opacity: page === 0 ? 0.3 : 1}}
+                >
+                  Anterior
+                </button>
+
+                <span style={{color:'#9ca3af', fontSize:'14px'}}>
+              Página {page + 1} de {totalPages} ({totalItems} productos)
+            </span>
+
+                <button
+                    onClick={() => setPage(page + 1)}
+                    disabled={page === totalPages - 1}
+                    style={{opacity: page === totalPages - 1 ? 0.3 : 1}}
+                >
+                  Siguiente
+                </button>
+              </div>
+          )}
+        </div>
+      </div>
+  )
 }
 
 function Receipts(){
@@ -119,11 +445,22 @@ function Receipts(){
   const [products,setProducts]=useState([])
   const [receipt,setReceipt]=useState(null)
   const [item,setItem]=useState({productId:'',quantity:0,unitCost:0,lotCode:'',expiryDate:''})
-  useEffect(()=>{ fetch(API+'/products').then(r=>r.json()).then(setProducts); fetch('http://localhost:8080/api/suppliers').catch(()=>{}); },[])
-  const create=async()=>{
-    const r=await fetch(API+'/receipts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({supplierId:1})});
-    const j=await r.json(); setReceipt(j);
-  }
+
+  useEffect(()=>{
+    fetch(API+'/products/all')
+        .then(r=>r.json())
+        .then(setProducts)
+        .catch(err => {
+          console.error('Error cargando productos:', err);
+          setProducts([]);
+        });
+
+    fetch(API+'/suppliers')
+        .then(r=>r.json())
+        .then(setSup)
+        .catch(()=>setSup([]));
+  },[])
+
   const add=async()=>{
     if(!receipt) return;
     const product = products.find(p=>p.id==item.productId)
@@ -312,20 +649,102 @@ function NominaForm({ setCurrent }) {
   );
 }
 
-function Rooms(){
-  const [q,setQ]=useState('')
-  const [list,setList]=useState([])
-  const search=()=>fetch(API+`/rooms/search?q=${encodeURIComponent(q||'')}`).then(r=>r.json()).then(setList)
-  useEffect(()=>{ fetch(API+'/rooms').then(r=>r.json()).then(setList) },[])
-  return (<div className="card">
-    <h3>Salas (Super Selectos)</h3>
-    <div className="grid grid-3">
-      <input placeholder="Buscar nombre..." value={q} onChange={e=>setQ(e.target.value)} />
-      <button onClick={search}>Buscar</button>
-      <span className="muted">{list.length} resultados</span>
-    </div>
-    <ul>{list.map(r=><li key={r.id}><b>{r.storeCode}</b> — {r.name} · {r.municipality}, {r.departmentName}</li>)}</ul>
-  </div>)
+function Salas() {
+  const [q, setQ] = useState('');
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Cargar todas al inicio
+  useEffect(() => {
+    setLoading(true);
+    fetch(API + '/salas')
+        .then(r => r.json())
+        .then(data => {
+          setList(data);
+          setLoading(false);
+        })
+        .catch(() => {
+          setList([]);
+          setLoading(false);
+        });
+  }, []);
+
+  const search = () => {
+    setLoading(true);
+    const query = q.trim();
+    const url = query
+        ? `${API}/salas/search?q=${encodeURIComponent(query)}`
+        : `${API}/salas`;
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          setList(data);
+          setLoading(false);
+        })
+        .catch(() => {
+          setList([]);
+          setLoading(false);
+        });
+  };
+
+  // Permitir búsqueda al presionar Enter
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') search();
+  };
+
+  return (
+      <div className="card">
+        <h3>Salas (Super Selectos)</h3>
+        <div className="grid grid-3" style={{ marginBottom: '16px' }}>
+          <input
+              placeholder="Buscar por número de sala o nombre comercial..."
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              onKeyDown={handleKeyDown}
+          />
+          <button onClick={search}>Buscar</button>
+          <span className="muted">{list.length} resultados</span>
+        </div>
+
+        {loading ? (
+            <p>Cargando salas...</p>
+        ) : (
+            <table width="100%">
+              <thead>
+              <tr>
+                <th>Número de Sala</th>
+                <th>Nombre Comercial</th>
+                <th>Dirección</th>
+                <th>Distrito</th>
+                <th>Municipio</th>
+                <th>Departamento</th>
+              </tr>
+              </thead>
+              <tbody>
+              {list.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#9ca3af' }}>
+                      No se encontraron salas
+                    </td>
+                  </tr>
+              ) : (
+                  list.map(sala => (
+                      <tr key={sala.id}>
+                        <td style={{ padding: '8px', textAlign: 'center' }}>{sala.noDeSala}</td>
+                        <td style={{ padding: '8px' }}>{sala.nombreComercial}</td>
+                        <td style={{ padding: '8px' }}>{sala.direccion || '—'}</td>
+                        <td style={{ padding: '8px' }}>{sala.distrito || '—'}</td>
+                        <td style={{ padding: '8px' }}>{sala.municipio || '—'}</td>
+                        <td style={{ padding: '8px' }}>{sala.departamento || '—'}</td>
+                      </tr>
+                  ))
+              )}
+              </tbody>
+            </table>
+        )}
+      </div>
+  );
 }
 
 function Nav({current,setCurrent}){
@@ -348,7 +767,7 @@ export default function App(){
     <Nav current={current} setCurrent={setCurrent} />
     {current==='Dashboard' && <Dashboard setCurrent={setCurrent} />}
     {current==='Productos' && <Products />}
-    {current==='Salas' && <Rooms />}
+    {current==='Salas' && <Salas />}
     {current==='REGISTRO_NOMINA' && <NominaForm setCurrent={setCurrent} />}
   </div>)
 }
