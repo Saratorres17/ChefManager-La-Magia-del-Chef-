@@ -1,1 +1,0 @@
-package com.chefmanager.repository; import com.chefmanager.model.InventoryLot; import org.springframework.data.jpa.repository.JpaRepository; public interface InventoryLotRepository extends JpaRepository<InventoryLot,Long>{}
