@@ -1,0 +1,1 @@
+package com.chefmanager.repository; import com.chefmanager.model.PayrollPeriod; import org.springframework.data.jpa.repository.JpaRepository; public interface PayrollPeriodRepository extends JpaRepository<PayrollPeriod,Long>{}
