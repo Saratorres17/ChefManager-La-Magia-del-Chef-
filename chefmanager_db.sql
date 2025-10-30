@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 27-10-2025 a las 00:25:14
+-- Tiempo de generación: 30-10-2025 a las 04:14:29
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -70,7 +70,9 @@ INSERT INTO `employees` (`id`, `dui`, `last_name`, `names`, `weekly_salary`) VAL
 (1, '65111789-5', 'Salazar Cortez', 'Luis Enriquez', 350),
 (2, '97057984-3', 'Martínez', 'Rodrigo Javier', 500),
 (3, '04788984-1', 'Pineda Lazo', 'Sebastián ', 250),
-(4, '23451212-2', 'Mixco Iraheta', 'Henry Daniel', 250);
+(4, '23451212-2', 'Mixco Iraheta', 'Henry Daniel', 250),
+(5, '12345678-9', 'Iraheta Mixco', 'Daniel Henry', 300),
+(6, '23123123-5', 'Martinez Hernandez', 'Juan Jose', 300);
 
 -- --------------------------------------------------------
 
@@ -133,6 +135,50 @@ CREATE TABLE `orden` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `ot_operation_logs`
+--
+
+CREATE TABLE `ot_operation_logs` (
+  `id` bigint(20) NOT NULL,
+  `username` varchar(255) NOT NULL,
+  `action` varchar(255) NOT NULL,
+  `details` varchar(500) DEFAULT NULL,
+  `when_action` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `ot_operation_logs`
+--
+
+INSERT INTO `ot_operation_logs` (`id`, `username`, `action`, `details`, `when_action`) VALUES
+(1, 'admin', 'CREAR_COMPRA', 'Compra registrada: Tomate - asddistribuidora', '2025-10-30 03:06:13'),
+(2, 'admin', 'CREAR_COMPRA', 'Compra registrada: Cebolla - Cebolladistribuidora', '2025-10-30 03:12:46');
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `ot_purchases`
+--
+
+CREATE TABLE `ot_purchases` (
+  `id` bigint(20) NOT NULL,
+  `product_name` varchar(255) NOT NULL,
+  `distributor` varchar(255) NOT NULL,
+  `total_price` double NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Volcado de datos para la tabla `ot_purchases`
+--
+
+INSERT INTO `ot_purchases` (`id`, `product_name`, `distributor`, `total_price`, `created_at`) VALUES
+(1, 'Tomate', 'asddistribuidora', 100, '2025-10-30 03:06:13'),
+(2, 'Cebolla', 'Cebolladistribuidora', 20, '2025-10-30 03:12:46');
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `payroll_entry`
 --
 
@@ -184,7 +230,9 @@ INSERT INTO `product` (`id`, `cost`, `name`, `sku`, `units`, `created_at`, `upda
 (2, 1.75, 'Azúcar Blanca 1kg', 'PRD002', 150, '2025-10-26 19:40:48', '2025-10-26 19:40:48'),
 (3, 3.25, 'Aceite Vegetal 1L', 'PRD003', 80, '2025-10-26 19:40:48', '2025-10-26 19:40:48'),
 (4, 0.85, 'Sal Marina 500g', 'PRD004', 200, '2025-10-26 19:40:48', '2025-10-26 19:40:48'),
-(5, 1.20, 'Levadura Seca 50g', 'PRD005', 50, '2025-10-26 19:40:48', '2025-10-26 19:40:48');
+(5, 1.20, 'Levadura Seca 50g', 'PRD005', 50, '2025-10-26 19:40:48', '2025-10-26 19:40:48'),
+(7, 0.50, 'Tomates', 'PRD006', 10, '2025-10-30 02:06:19', '2025-10-30 02:06:19'),
+(8, 0.25, 'Cebolla', 'PRD007', 5, '2025-10-30 02:06:58', '2025-10-30 02:06:58');
 
 -- --------------------------------------------------------
 
@@ -515,6 +563,18 @@ ALTER TABLE `orden`
   ADD KEY `fk_orden_producto` (`producto_id`);
 
 --
+-- Indices de la tabla `ot_operation_logs`
+--
+ALTER TABLE `ot_operation_logs`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indices de la tabla `ot_purchases`
+--
+ALTER TABLE `ot_purchases`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indices de la tabla `payroll_entry`
 --
 ALTER TABLE `payroll_entry`
@@ -622,7 +682,7 @@ ALTER TABLE `delivery`
 -- AUTO_INCREMENT de la tabla `employees`
 --
 ALTER TABLE `employees`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT de la tabla `inventory_item`
@@ -649,6 +709,18 @@ ALTER TABLE `orden`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT de la tabla `ot_operation_logs`
+--
+ALTER TABLE `ot_operation_logs`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT de la tabla `ot_purchases`
+--
+ALTER TABLE `ot_purchases`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT de la tabla `payroll_entry`
 --
 ALTER TABLE `payroll_entry`
@@ -664,7 +736,7 @@ ALTER TABLE `payroll_period`
 -- AUTO_INCREMENT de la tabla `product`
 --
 ALTER TABLE `product`
-  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT de la tabla `production_order`
