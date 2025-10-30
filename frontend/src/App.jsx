@@ -47,11 +47,38 @@ function KpiCard({ title, value, onClick }) {
 }
 
 function Dashboard({ setCurrent }) {
-  const inv = useFetch(API + '/kpi/inventory-turnover');
-  const ord = useFetch(API + '/kpi/orders-open');
+  const inv = useFetch(API + '/kpi/inventory-turnover')
   const pos = useFetch(API + '/kpi/pos-in-progress');
   const pay = useFetch(API + '/kpi/payroll-next');
-  const alerts = useFetch(API + '/kpi/alerts');
+
+  // Fetch para obtener el total de productos
+  const [totalProducts, setTotalProducts] = useState(null);
+
+  // Fetch para obtener el total de empleados
+  const [totalEmployees, setTotalEmployees] = useState(null);
+
+  // 🎯 Nuevo fetch para obtener el total de compras OT
+  const [totalPurchases, setTotalPurchases] = useState(null);
+
+  useEffect(() => {
+    // Obtener total de productos
+    fetch(`${API}/products?page=0&size=1`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => setTotalProducts(data.totalItems || 0))
+        .catch(() => setTotalProducts(0));
+
+    // Obtener total de empleados
+    fetch(`${API}/employees`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => setTotalEmployees(data.length || 0))
+        .catch(() => setTotalEmployees(0));
+
+    // Obtener total de compras OT
+    fetch(`${API}/ot-en-curso/purchases`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => setTotalPurchases(data.length || 0))
+        .catch(() => setTotalPurchases(0));
+  }, []);
 
   return (
       <div className="grid">
@@ -61,27 +88,23 @@ function Dashboard({ setCurrent }) {
               display: 'grid',
               gridTemplateColumns: 'repeat(4,1fr)',
               gap: 16,
+              marginTop: '2%'
             }}
         >
-          <KpiCard title="Rotación inventario" value={inv?.value ?? '—'} />
-          <KpiCard title="Pedidos abiertos" value={ord?.value ?? '—'} />
-          <KpiCard title="OT en curso" value={pos?.value ?? '—'} />
+          <KpiCard
+              title="Rotación inventario"
+              value={totalProducts !== null ? totalProducts : '—'}
+          />
+          <KpiCard
+              title="OT en curso"
+              value={totalPurchases !== null ? totalPurchases : '—'}
+              onClick={() => setCurrent('OT_EN_CURSO')}
+          />
           <KpiCard
               title="Nómina de empleados"
-              value={pay?.value ?? '—'}
+              value={totalEmployees !== null ? totalEmployees : '—'}
               onClick={() => setCurrent('REGISTRO_NOMINA')}
           />
-        </div>
-
-        <div className="card">
-          <h3>Alertas</h3>
-          <ul>
-            {(alerts || []).map((a, i) => (
-                <li key={i}>
-                  {a.type}: {a.message}
-                </li>
-            ))}
-          </ul>
         </div>
       </div>
   );
@@ -747,6 +770,404 @@ function Salas() {
   );
 }
 
+function OTEnCurso({ setCurrent }) {
+  const [view, setView] = useState('purchases'); // 'purchases', 'form', 'logs'
+  const [purchases, setPurchases] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [form, setForm] = useState({
+    productName: '',
+    distributor: '',
+    totalPrice: 0
+  });
+  const [loading, setLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // Cargar lista de compras
+  const fetchPurchases = async () => {
+    setListLoading(true);
+    try {
+      const response = await fetch(`${API}/ot-en-curso/purchases`);
+      if (response.ok) {
+        const data = await response.json();
+        setPurchases(data);
+      } else {
+        console.error('Error al cargar compras:', response.status);
+        setPurchases([]);
+      }
+    } catch (err) {
+      console.error('Error al cargar compras:', err);
+      setError('Error al cargar las compras');
+      setPurchases([]);
+    } finally {
+      setListLoading(false);
+    }
+  };
+
+  // Cargar bitácora de operaciones
+  const fetchLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const response = await fetch(`${API}/ot-en-curso/logs`);
+      if (response.ok) {
+        const data = await response.json();
+        setLogs(data);
+      } else {
+        console.error('Error al cargar bitácora:', response.status);
+        setLogs([]);
+      }
+    } catch (err) {
+      console.error('Error al cargar bitácora:', err);
+      setLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (view === 'purchases') {
+      fetchPurchases();
+    } else if (view === 'logs') {
+      fetchLogs();
+    }
+  }, [view]);
+
+  // Resetear formulario
+  const resetForm = () => {
+    setForm({ productName: '', distributor: '', totalPrice: 0 });
+    setError('');
+    setSuccess('');
+  };
+
+  // Guardar nueva compra
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    // Validaciones
+    if (!form.productName.trim()) {
+      setError('El nombre del producto es obligatorio');
+      setLoading(false);
+      return;
+    }
+    if (!form.distributor.trim()) {
+      setError('El distribuidor es obligatorio');
+      setLoading(false);
+      return;
+    }
+    if (parseFloat(form.totalPrice) <= 0) {
+      setError('El precio total debe ser mayor a 0');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const payload = {
+        productName: form.productName.trim(),
+        distributor: form.distributor.trim(),
+        totalPrice: parseFloat(form.totalPrice).toFixed(2)
+      };
+
+      const response = await fetch(`${API}/ot-en-curso/purchase/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        setSuccess('Compra registrada exitosamente');
+        resetForm();
+        setTimeout(() => {
+          setView('purchases');
+          setSuccess('');
+        }, 1500);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.error || 'Error al guardar la compra');
+      }
+    } catch (err) {
+      console.error('Error al guardar:', err);
+      setError('Error de conexión con el servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Formatear fecha
+  const formatDate = (dateString) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-SV', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  return (
+      <div style={{ maxWidth: 1200, margin: '24px auto', padding: '0 16px' }}>
+        {/* Header con navegación */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '24px',
+          flexWrap: 'wrap',
+          gap: '16px'
+        }}>
+          <h2 style={{ margin: 0 }}>OT en Curso</h2>
+
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button
+                onClick={() => setView('purchases')}
+                style={{
+                  background: view === 'purchases' ? '#6366f1' : '#3d4152',
+                  padding: '8px 16px'
+                }}
+            >
+              📦 Compras
+            </button>
+            <button
+                onClick={() => setView('form')}
+                style={{
+                  background: view === 'form' ? '#6366f1' : '#3d4152',
+                  padding: '8px 16px'
+                }}
+            >
+              ➕ Nueva Compra
+            </button>
+            <button
+                onClick={() => setView('logs')}
+                style={{
+                  background: view === 'logs' ? '#6366f1' : '#3d4152',
+                  padding: '8px 16px'
+                }}
+            >
+              📋 Bitácora
+            </button>
+            <button
+                type="button"
+                onClick={() => setCurrent('Dashboard')}
+                style={{ background: '#3d4152', padding: '8px 16px' }}
+            >
+              ← Dashboard
+            </button>
+          </div>
+        </div>
+
+        {/* Vista: Lista de Compras */}
+        {view === 'purchases' && (
+            <div className="card">
+              <h3>Compras Registradas ({purchases.length})</h3>
+
+              {listLoading && (
+                  <p style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
+                    Cargando compras...
+                  </p>
+              )}
+
+              {!listLoading && purchases.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '40px' }}>
+                    <p style={{ color: '#9ca3af', marginBottom: '16px' }}>
+                      No hay compras registradas
+                    </p>
+                    <button onClick={() => setView('form')} style={{ background: '#2d5016' }}>
+                      ➕ Registrar Primera Compra
+                    </button>
+                  </div>
+              )}
+
+              {!listLoading && purchases.length > 0 && (
+                  <table width="100%" style={{ borderCollapse: 'collapse' }}>
+                    <thead>
+                    <tr style={{ backgroundColor: '#1f2937', color: '#f3f4f6' }}>
+                      <th style={{ padding: '12px', textAlign: 'center', borderRight: '1px solid #374151' }}>ID</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderRight: '1px solid #374151' }}>Producto</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderRight: '1px solid #374151' }}>Distribuidor</th>
+                      <th style={{ padding: '12px', textAlign: 'right', borderRight: '1px solid #374151' }}>Precio Total</th>
+                      <th style={{ padding: '12px', textAlign: 'center' }}>Fecha</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {purchases.map(p => (
+                        <tr key={p.id} style={{ borderBottom: '1px solid #374151' }}>
+                          <td style={{ padding: '10px', textAlign: 'center' }}>{p.id}</td>
+                          <td style={{ padding: '10px', textAlign: 'left' }}>{p.productName}</td>
+                          <td style={{ padding: '10px', textAlign: 'left' }}>{p.distributor}</td>
+                          <td style={{ padding: '10px', textAlign: 'right' }}>
+                            ${p.totalPrice?.toFixed?.(2) || '0.00'}
+                          </td>
+                          <td style={{ padding: '10px', textAlign: 'center' }}>
+                            {formatDate(p.createdAt)}
+                          </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                  </table>
+              )}
+            </div>
+        )}
+
+        {/* Vista: Formulario Nueva Compra */}
+        {view === 'form' && (
+            <div className="card">
+              <h3>Registrar Nueva Compra</h3>
+
+              {error && (
+                  <div style={{
+                    padding: '10px',
+                    backgroundColor: '#993333',
+                    color: 'white',
+                    borderRadius: '4px',
+                    marginBottom: '15px'
+                  }}>
+                    ❌ {error}
+                  </div>
+              )}
+
+              {success && (
+                  <div style={{
+                    padding: '10px',
+                    backgroundColor: '#2d5016',
+                    color: 'white',
+                    borderRadius: '4px',
+                    marginBottom: '15px'
+                  }}>
+                    ✅ {success}
+                  </div>
+              )}
+
+              <form onSubmit={handleSubmit}>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#9ca3af' }}>
+                    Nombre del Producto *
+                  </label>
+                  <input
+                      type="text"
+                      placeholder="Ingrese el nombre del producto"
+                      value={form.productName}
+                      onChange={e => setForm({ ...form, productName: e.target.value })}
+                      required
+                      style={{ width: '95%' }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#9ca3af' }}>
+                    Distribuidor *
+                  </label>
+                  <input
+                      type="text"
+                      placeholder="Ingrese el nombre del distribuidor"
+                      value={form.distributor}
+                      onChange={e => setForm({ ...form, distributor: e.target.value })}
+                      required
+                      style={{ width: '95%' }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#9ca3af' }}>
+                    Precio Total para el Proyecto *
+                  </label>
+                  <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={form.totalPrice}
+                      onChange={e => setForm({ ...form, totalPrice: e.target.value })}
+                      required
+                      style={{ width: '95%' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                      type="submit"
+                      disabled={loading}
+                      style={{ flex: 1 }}
+                  >
+                    {loading ? 'Guardando...' : 'Guardar Compra'}
+                  </button>
+                  <button
+                      type="button"
+                      onClick={() => setView('purchases')}
+                      style={{ background: '#3d4152' }}
+                  >
+                    Ver Compras
+                  </button>
+                </div>
+              </form>
+            </div>
+        )}
+
+        {/* Vista: Bitácora de Operaciones */}
+        {view === 'logs' && (
+            <div className="card">
+              <h3>Bitácora de Operaciones</h3>
+
+              {logsLoading && (
+                  <p style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
+                    Cargando bitácora...
+                  </p>
+              )}
+
+              {!logsLoading && logs.length === 0 && (
+                  <p style={{ textAlign: 'center', padding: '40px', color: '#9ca3af' }}>
+                    No hay operaciones registradas
+                  </p>
+              )}
+
+              {!logsLoading && logs.length > 0 && (
+                  <table width="100%" style={{ borderCollapse: 'collapse' }}>
+                    <thead>
+                    <tr style={{ backgroundColor: '#1f2937', color: '#f3f4f6' }}>
+                      <th style={{ padding: '12px', textAlign: 'center', borderRight: '1px solid #374151', width: '8%' }}>ID</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderRight: '1px solid #374151', width: '15%' }}>Usuario</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderRight: '1px solid #374151', width: '15%' }}>Acción</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderRight: '1px solid #374151', width: '40%' }}>Detalles</th>
+                      <th style={{ padding: '12px', textAlign: 'center', width: '22%' }}>Fecha</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {logs.map(log => (
+                        <tr key={log.id} style={{ borderBottom: '1px solid #374151' }}>
+                          <td style={{ padding: '10px', textAlign: 'center' }}>{log.id}</td>
+                          <td style={{ padding: '10px', textAlign: 'left' }}>{log.username}</td>
+                          <td style={{ padding: '10px', textAlign: 'left' }}>
+                      <span style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: '#374151',
+                        fontSize: '12px'
+                      }}>
+                        {log.action}
+                      </span>
+                          </td>
+                          <td style={{ padding: '10px', textAlign: 'left', color: '#9ca3af' }}>
+                            {log.details}
+                          </td>
+                          <td style={{ padding: '10px', textAlign: 'center' }}>
+                            {formatDate(log.whenAction)}
+                          </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                  </table>
+              )}
+            </div>
+        )}
+      </div>
+  );
+}
+
 function Nav({current,setCurrent}){
   const tabs=['Dashboard','Productos','Salas']
   return (<header style={{display:'flex',gap:12,alignItems:'center',justifyContent:'space-between',padding:16}}>
@@ -769,5 +1190,6 @@ export default function App(){
     {current==='Productos' && <Products />}
     {current==='Salas' && <Salas />}
     {current==='REGISTRO_NOMINA' && <NominaForm setCurrent={setCurrent} />}
+    {current==='OT_EN_CURSO' && <OTEnCurso setCurrent={setCurrent} />}
   </div>)
 }

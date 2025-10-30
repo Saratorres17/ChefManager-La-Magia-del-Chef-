@@ -33,7 +33,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             "/api/kpi/",
             "/api/salas",
             "/api/receipts",
-            "/api/suppliers"
+            "/api/suppliers",
+            "/api/ot-en-curso"
     );
 
     @Override

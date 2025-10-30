@@ -40,6 +40,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/salas/**").permitAll()
                         .requestMatchers("/api/receipts/**").permitAll()
                         .requestMatchers("/api/suppliers/**").permitAll()
+                        .requestMatchers("/api/ot-en-curso/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

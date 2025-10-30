@@ -63,7 +63,6 @@ public class PayrollEntry {
     }
 
     public void setNetPay(Double netPay) {
-        this.netPay = netPay;
+        this.netPay =netPay;
     }
 }
-

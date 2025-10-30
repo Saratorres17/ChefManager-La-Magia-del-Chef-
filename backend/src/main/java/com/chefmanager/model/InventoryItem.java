@@ -53,7 +53,6 @@ public class InventoryItem {
     }
 
     public void setPrice(Double price) {
-        this.price = price;
+        this.price =price;
     }
 }
-
