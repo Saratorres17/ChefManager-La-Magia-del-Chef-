@@ -83,10 +83,10 @@ function Dashboard({ setCurrent }) {
   return (
       <div className="grid">
         <div
-            className="grid grid-4"
+            className="grid grid-3"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4,1fr)',
+              gridTemplateColumns: 'repeat(3,1fr)',
               gap: 16,
               marginTop: '2%'
             }}
