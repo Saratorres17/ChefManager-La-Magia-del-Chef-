@@ -1,0 +1,1 @@
+package com.chefmanager.repository; import com.chefmanager.model.Supplier; import org.springframework.data.jpa.repository.JpaRepository; public interface SupplierRepository extends JpaRepository<Supplier,Long>{}
